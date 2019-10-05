@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Sep 27 19:30:58 2019
+
+@author: SamanthaBurtwistle
+"""
+
+import tweepy as tw
+import csv
+import sys
+
+# Twitter auth codes
+consumer_key = 'n61DZgHbGIjpMQsYtBgOqGtKr'
+consumer_secret = 'm5Q7NiJy7UprimkBBExjPr7aL0Jc5kbFBPAPwOWz8yf5B63Znb'
+access_token = '51934148-H7tDC789iT34V5zNxrbbFITr5klTaKdTSYBqIJTfd'
+access_token_secret = '5m361gZ6dQOvYnqih5b1oCXNpOQm4aogUCCvJ05mlUa2D'
+
+# Other variables
+
+file_name = '/Users/SamanthaBurtwistle/Documents/Husker Project/gameTweets.csv'# where we're saving the file
+fields = ['Username','Tweet ID', 'Time', 'User Location', 'Text', 'Tweet Geo Coordinates','Is Retweet','Is Quote Tweet'] # the fields of data we're getting; these will be our column names
+tracking_keywords = ['husker','huskers','cornhuskers','gbr','ohio state','buckeyes','gobucks','OSUvsNEB']
+
+# Authorizing
+
+auth = tw.OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_token_secret)
+api = tw.API(auth)
+
+# Making a new csv file and putting the column names into it first
+
+with open(file_name, 'a') as f:
+    writer = csv.writer(f)
+    writer.writerow(fields)
+
+
+# making a stream listener
+class CustomStreamListener(tw.StreamListener):
+
+    def on_status(self, status):
+        if hasattr(status, 'retweeted_status'): # Checking if it's a retweet, and if so, adding 'Retweet' to the 'Is it a Retweet?' column
+            try: #then, if it's a long tweet, it might be cut off. if it has 'extended_tweet' as an attribute, then its text is under "full_text" in 'extended tweet'
+                tweet = status.retweeted_status.extended_tweet["full_text"]
+            except: #if not, it's under the normal status.text
+                tweet = status.retweeted_status.text
+            finally: 
+                #then, printing on screen
+                #print (status.user.screen_name, status.id, status.created_at, status.user.location, tweet, status.coordinates, True, status.is_quote_status)
+                # Writing the tweet data to the file
+                with open(file_name, 'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([status.user.screen_name, status.id, status.created_at, status.user.location, tweet, status.coordinates, True,status.is_quote_status])
+        else:
+            try:
+                tweet = status.extended_tweet["full_text"]
+            except:
+                tweet = status.text
+            finally:
+                #print (status.user.screen_name, status.id, status.created_at, status.user.location, tweet, status.coordinates, False,status.is_quote_status)
+                # Writing the tweet data to the file
+                with open(file_name, 'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([status.user.screen_name, status.id, status.created_at, status.user.location, tweet, status.coordinates, False,status.is_quote_status])
+
+    # dealing with errors: stopping if it's a rate limiting error, but keeping on if it's not
+    def on_error(self, status_code):
+        if status_code == 420:
+            return False
+        else:
+            print(sys.stderr, 'Encountered error with status code:', status_code)
+            return True # Don't kill the stream
+
+
+# Running the stream!
+streamingAPI = tw.streaming.Stream(auth, CustomStreamListener())
+
+# filtering by keywords
+streamingAPI.filter(languages = ["en"], track = tracking_keywords)
+
+
